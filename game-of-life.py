@@ -1,3 +1,4 @@
+
 """
 TODOS:
     - Add a draw screen function to print out statistics
@@ -6,12 +7,15 @@ TODOS:
     - Actually write the game of life stuff
 """
 import curses
+
 from collections import namedtuple
+from functools import wraps
 
 Point = namedtuple("Point", ["row", "col"])
 Vector = namedtuple("Vector", ["row", "col"])
 
 CELL_CHAR = ord("o")
+
 
 class Command:
     """
@@ -40,12 +44,10 @@ class Mode:
     INSERT = 1
     NORMAL = 2
 
-
 class GameOfLife:
     """
     An instance of the game of life.
     """
-
     def __init__(self, stdscr):
         self.stdscr = stdscr
         self.mode = Mode.NORMAL
@@ -53,9 +55,11 @@ class GameOfLife:
         self.insert_tranjectory = Vector(row=0, col=0)
         self.start()
 
+    # Declare cursor_position as a property
     def get_cursor_position(self) -> Point:
         row, column = self.stdscr.getyx()
         return Point(row=row, col=column)
+    cursor_position = property(fget=get_cursor_position)
 
     def start(self):
         """
@@ -81,9 +85,7 @@ class GameOfLife:
                 # We're probably just trying to move off the side of the screen
                 pass
             if self.mode == Mode.INSERT:
-                pos = self.get_cursor_position()
-                self.stdscr.addch(CELL_CHAR)
-                self.stdscr.move(pos.row, pos.col)
+                self.insert_cell(self.cursor_position)
             else:
                 pass
         elif input_key == Command.TOGGLE_INSERT_MODE_KEY:
@@ -99,6 +101,11 @@ class GameOfLife:
 
         return True
 
+    def insert_cell(self, position):
+        old_position = self.cursor_position
+        self.stdscr.move(position.row, position.col)
+        self.stdscr.addch(CELL_CHAR)
+        self.stdscr.move(old_position.row, old_position.col)
+
 if __name__ == '__main__':
     curses.wrapper(GameOfLife)
-       
