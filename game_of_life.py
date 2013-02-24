@@ -15,6 +15,7 @@ Point = namedtuple("Point", ["row", "col"])
 Vector = namedtuple("Vector", ["row", "col"])
 
 CELL_CHAR = ord("o")
+BLANK_CHAR= ord(" ")
 
 
 class Command:
@@ -23,6 +24,9 @@ class Command:
     """
     MOVE_KEYS = ['KEY_LEFT', 'KEY_RIGHT', 'KEY_UP', 'KEY_DOWN']
     TOGGLE_INSERT_MODE_KEY = ' '
+    INSERT_CELL= 'c'
+    DELETE_CELL = 'x'
+    QUIT = 'q'
     
     @staticmethod
     def cursor_transform_for_command(key):
@@ -38,7 +42,7 @@ class Command:
         elif key == 'KEY_DOWN':
             return Vector(row=1, col=0)
         else:
-            raise ValueError("{} is not a valid key".format(key))
+            raise ValueError("{} does not map to a transformation".format(key))
 
 class Mode:
     INSERT = 1
@@ -87,6 +91,8 @@ class Board:
         return len(self.cell_positions)
     cell_count = property(fget=get_cell_count)
 
+    def step(self):
+        pass
 
 
 class GameOfLife:
@@ -94,12 +100,14 @@ class GameOfLife:
     An instance of the game of life.
     """
     def __init__(self, stdscr):
+        # Do initializations
         self.stdscr = stdscr
         self.mode = Mode.NORMAL
         origin = Point(row=0, col=0)
         self.insert_tranjectory = Vector(row=0, col=0)
+        self.board = Board()
+        # Start the game
         self.start()
-        board = Board()
 
     # Declare cursor_position as a property
     def get_cursor_position(self) -> Point:
@@ -120,48 +128,54 @@ class GameOfLife:
         """
         Takes a user input and decides what to do about it
         """
-        if input_key == 'q':
+        if input_key == Command.QUIT:
             return False
         elif input_key in Command.MOVE_KEYS:
             transform = Command.cursor_transform_for_command(input_key)
-            pos = self.get_cursor_position()
-            try:
-                self.stdscr.move(pos.row + transform.row, pos.col + transform.col)
-            except curses.error as e:
-                # We're probably just trying to move off the side of the screen
-                pass
-            if self.mode == Mode.INSERT:
-                self.insert_cell(self.cursor_position)
-            else:
-                pass
+            if self.mode == Mode.INSERT: self.add_cell(self.cursor_position)
+            self.move(transform.row, transform.col)
+        elif input_key == Command.INSERT_CELL:
+            self.add_cell(self.cursor_position)
+        elif input_key == Command.DELETE_CELL:
+            self.remove_cell(self.cursor_position)
         elif input_key == Command.TOGGLE_INSERT_MODE_KEY:
-            if self.mode == Mode.INSERT:
-                self.mode = Mode.NORMAL
-            else:
-                self.mode = Mode.INSERT
-                pos = self.get_cursor_position()
-                self.stdscr.addch(CELL_CHAR)
-                self.stdscr.move(pos.row, pos.col)
+            self.mode = Mode.INSERT if self.mode == Mode.NORMAL else Mode.NORMAL
         else:
-            self.stdscr.addstr(input_key)
+            pass
 
         return True
 
-    def insert_cell(self, position):
+    def move(self, row_delta, col_delta):
+        """ 
+        Move the cursor
+        """
+        pos = self.cursor_position
+        try:
+            self.stdscr.move(pos.row + row_delta, pos.col + col_delta)
+        except curses.error:
+            return False
+
+        return True
+
+    def add_cell(self, position):
         # Insert into our board
         self.board.add_cell(position)
-
         # Update the display
         old_position = self.cursor_position
         self.stdscr.move(position.row, position.col)
         self.stdscr.addch(CELL_CHAR)
         self.stdscr.move(old_position.row, old_position.col)
 
-if __name__ == '__main__':
-    #curses.wrapper(GameOfLife)
-    initial_coordinates = [(1,1), (2,2), (3,3)]
-    initial_positions = [Point(x,y) for x,y in initial_coordinates]
-    b = Board(initial_positions)
-    b.remove_cell(Point(1,1))
-    print(b.cell_positions)
+    def remove_cell(self, position):
+        # Remove from our board
+        self.board.remove_cell(position)
+        # Update the display
+        old_position = self.cursor_position
+        self.stdscr.move(position.row, position.col)
+        self.stdscr.addch(BLANK_CHAR)
+        self.stdscr.move(old_position.row, old_position.col)
 
+
+
+if __name__ == '__main__':
+    curses.wrapper(GameOfLife)
