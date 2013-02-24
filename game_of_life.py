@@ -44,6 +44,51 @@ class Mode:
     INSERT = 1
     NORMAL = 2
 
+class Board:
+    """ 
+    A game board that tracks all living cells
+    cell_positions is a map keyed by Point objects
+    """
+    def __init__(self, initial_positions=[]):
+        self.cell_positions = {}
+        for p in initial_positions:
+           self.add_cell(p)
+ 
+    def cell_at(self, point):
+        return self.cell_positions.get(point, False)
+
+    def add_cell(self, point) -> bool:
+        """
+        Add a cell at <point> :: Point.
+        Returns:
+            True on sucess
+            False otherwise
+        """
+        if not self.cell_at(point):
+            self.cell_positions[point] = True
+            return True
+        else:
+            return False
+
+    def remove_cell(self, point) -> bool:
+        """
+        Remove the cell at point :: Point.
+        Returns:
+            True on success
+            False otherwise
+        """
+        if self.cell_at(point):
+            del self.cell_positions[point]
+            return True
+        else:
+            return False
+   
+    def get_cell_count(self):
+        return len(self.cell_positions)
+    cell_count = property(fget=get_cell_count)
+
+
+
 class GameOfLife:
     """
     An instance of the game of life.
@@ -54,6 +99,7 @@ class GameOfLife:
         origin = Point(row=0, col=0)
         self.insert_tranjectory = Vector(row=0, col=0)
         self.start()
+        board = Board()
 
     # Declare cursor_position as a property
     def get_cursor_position(self) -> Point:
@@ -102,10 +148,20 @@ class GameOfLife:
         return True
 
     def insert_cell(self, position):
+        # Insert into our board
+        self.board.add_cell(position)
+
+        # Update the display
         old_position = self.cursor_position
         self.stdscr.move(position.row, position.col)
         self.stdscr.addch(CELL_CHAR)
         self.stdscr.move(old_position.row, old_position.col)
 
 if __name__ == '__main__':
-    curses.wrapper(GameOfLife)
+    #curses.wrapper(GameOfLife)
+    initial_coordinates = [(1,1), (2,2), (3,3)]
+    initial_positions = [Point(x,y) for x,y in initial_coordinates]
+    b = Board(initial_positions)
+    b.remove_cell(Point(1,1))
+    print(b.cell_positions)
+
