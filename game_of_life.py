@@ -3,7 +3,6 @@
 TODOS:
     - Add a draw screen function to print out statistics
     - Add infinite scroll
-    - Do trajectory modifications (clear trajectory)
     - Actually write the game of life stuff
 """
 import curses
@@ -54,23 +53,36 @@ class Board:
     A game board that tracks all living cells
     cell_positions is a map keyed by Point objects
     """
+    NEIGHBOUR_TRANFORMS = [Vector(-1, -1), Vector(-1, 0), Vector(-1, 1), 
+                           Vector(0, -1), Vector(0, 1),
+                           Vector(1, -1),  Vector(1, 0), Vector(1, 1)]
+
     def __init__(self, initial_positions=[]):
         self.cell_positions = {}
         for p in initial_positions:
            self.add_cell(p)
+
+    @property
+    def cells(self):
+        return self.cell_positions.keys()
+
+    @property
+    def cell_count(self):
+        return len(self.cell_positions)
  
+    @property
+    def empty_neighbour_set(self):
+        all_neighbours = [Point(p.row+v.row, p.col+v.col) for p in self.cells for v in Board.NEIGHBOUR_TRANFORMS] 
+        return set([n for n in all_neighbours if not self.cell_at(n)])
+
     def cell_at(self, point):
         return self.cell_positions.get(point, False)
-
-    def get_cells(self):
-        return self.cell_positions.keys()
-    cells = property(fget=get_cells)
 
     def add_cell(self, point) -> bool:
         """
         Add a cell at <point> :: Point.
         Returns:
-            True on sucess
+            True on success
             False otherwise
         """
         if not self.cell_at(point):
@@ -92,11 +104,11 @@ class Board:
         else:
             return False
    
-    def get_cell_count(self):
-        return len(self.cell_positions)
-    cell_count = property(fget=get_cell_count)
-
     def step(self):
+        # Create a new empty board
+        self.next_cell_positions = {}
+        # For each live cell: 2/3 neighbours = live. Else die.
+        # For each empty plot: 3 live neighbours = live. Else same.
         pass
 
 class Screen:
@@ -197,6 +209,10 @@ class GameOfLife:
         self.screen.clear()
         for point in self.board.cells:
             self.screen.add_cell(point)
+
+    def step(self):
+        self.board.step()
+        self.refresh_screen()
 
 if __name__ == '__main__':
     curses.wrapper(GameOfLife)

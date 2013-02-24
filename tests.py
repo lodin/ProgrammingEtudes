@@ -33,6 +33,15 @@ class BoardTestCase(unittest.TestCase):
 
     def test_cell_count(self):
         self.assertEqual(len(self.initial_positions), self.board.cell_count)
+
+    def test_get_empty_neighbour_set(self):
+        self.initial_coordinates = [(1,1), (2,2)]
+        self.initial_positions = [Point(x,y) for x,y in self.initial_coordinates]
+        self.board = Board(self.initial_positions)
+        expected_empty_neighbours_set = set([Point(row=0, col=1), Point(row=1, col=2), Point(row=3, col=2), Point(row=0, col=0),
+                                             Point(row=3, col=3), Point(row=3, col=1), Point(row=2, col=1), Point(row=2, col=0),
+                                             Point(row=1, col=3), Point(row=2, col=3), Point(row=1, col=0), Point(row=0, col=2)])
+        self.assertEqual(expected_empty_neighbours_set, self.board.empty_neighbour_set)
         
 if __name__ == '__main__':
     unittest.main()
