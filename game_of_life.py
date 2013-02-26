@@ -27,6 +27,7 @@ class Command:
     DELETE_CELL = 'x'
     QUIT = 'q'
     REFRESH = 'r'
+    STEP = ' '
     
     @staticmethod
     def cursor_transform_for_command(key):
@@ -103,23 +104,40 @@ class Board:
             return True
         else:
             return False
+
+    def live_neighbours_count(self, point):
+        all_neighbours = [Point(point.row+v.row, point.col+v.col) for v in Board.NEIGHBOUR_TRANFORMS] 
+        return len([n for n in all_neighbours if self.cell_at(n)])
    
     def step(self):
         # Create a new empty board
-        self.next_cell_positions = {}
+        next_cell_positions = {}
         # For each live cell: 2/3 neighbours = live. Else die.
+        for cell_position in self.cells:
+            neighbour_count = self.live_neighbours_count(cell_position)
+            if neighbour_count == 2 or neighbour_count == 3:
+                next_cell_positions[cell_position] = True
         # For each empty plot: 3 live neighbours = live. Else same.
-        pass
+        for empty_position in self.empty_neighbour_set:
+            neighbour_count = self.live_neighbours_count(empty_position)
+            if neighbour_count == 3:
+                next_cell_positions[empty_position] = True
+
+        self.cell_positions = next_cell_positions
 
 class Screen:
     def __init__(self, stdscr):
         self.stdscr = stdscr
+        self.max_row, self.max_col = self.stdscr.getmaxyx()
+        self.max_row -= 1
+        self.max_col -= 1
+        self.origin = Point(0,0)
 
     # Declare cursor_position as a property
-    def get_cursor_position(self) -> Point:
+    @property
+    def cursor_position(self) -> Point:
         row, column = self.stdscr.getyx()
         return Point(row=row, col=column)
-    cursor_position = property(fget=get_cursor_position)
 
     def get_input_key(self):
         return self.stdscr.getkey()
@@ -137,6 +155,8 @@ class Screen:
         return True
 
     def add_cell(self, point):
+        if point.row > self.max_row or point.col > self.max_col or point.row < 0 or point.col < 0:
+            return
         old_position = self.cursor_position
         self.stdscr.move(point.row, point.col)
         self.stdscr.addch(CELL_CHAR)
@@ -147,6 +167,12 @@ class Screen:
         self.stdscr.move(point.row, point.col)
         self.stdscr.addch(BLANK_CHAR)
         self.stdscr.move(old_position.row, old_position.col)
+
+    def save_cursor(self):
+        self.saved_cursor = self.cursor_position
+
+    def restore_cursor(self):
+        self.stdscr.move(self.saved_cursor.row, self.saved_cursor.col)
 
     def clear(self):
         self.stdscr.erase()
@@ -192,6 +218,8 @@ class GameOfLife:
             self.screen.redraw()
         elif input_key == Command.TOGGLE_INSERT_MODE_KEY:
             self.mode = Mode.INSERT if self.mode == Mode.NORMAL else Mode.NORMAL
+        elif input_key == Command.STEP:
+            self.step()
         else:
             pass
 
@@ -206,9 +234,11 @@ class GameOfLife:
         self.screen.remove_cell(position)
 
     def refresh_screen(self):
+        pos = self.screen.save_cursor()
         self.screen.clear()
         for point in self.board.cells:
             self.screen.add_cell(point)
+        self.screen.restore_cursor()
 
     def step(self):
         self.board.step()

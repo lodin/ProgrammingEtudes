@@ -42,6 +42,11 @@ class BoardTestCase(unittest.TestCase):
                                              Point(row=3, col=3), Point(row=3, col=1), Point(row=2, col=1), Point(row=2, col=0),
                                              Point(row=1, col=3), Point(row=2, col=3), Point(row=1, col=0), Point(row=0, col=2)])
         self.assertEqual(expected_empty_neighbours_set, self.board.empty_neighbour_set)
+
+    def test_live_neighbours_count(self):
+        self.assertEqual(self.board.live_neighbours_count(Point(1,1)), 1)
+        self.assertEqual(self.board.live_neighbours_count(Point(2,2)), 2)
+        self.assertEqual(self.board.live_neighbours_count(Point(3,3)), 1)
         
 if __name__ == '__main__':
     unittest.main()
