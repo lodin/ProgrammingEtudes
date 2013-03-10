@@ -1,9 +1,6 @@
-
 """
 TODOS:
     - Add a draw screen function to print out statistics
-    - Add infinite scroll
-    - Actually write the game of life stuff
 """
 import curses
 
@@ -22,7 +19,11 @@ class Command:
     Stores the valid user input commands
     """
     MOVE_KEYS = ['KEY_LEFT', 'KEY_RIGHT', 'KEY_UP', 'KEY_DOWN']
-    TOGGLE_INSERT_MODE_KEY = 't'
+
+    INSERT_MODE = 'i'
+    NORMAL_MODE = 'n'
+    PAN_MODE = 'p'
+
     INSERT_CELL= 'c'
     DELETE_CELL = 'x'
     QUIT = 'q'
@@ -48,6 +49,7 @@ class Command:
 class Mode:
     INSERT = 1
     NORMAL = 2
+    PAN = 3
 
 class Board:
     """ 
@@ -121,8 +123,7 @@ class Board:
         for empty_position in self.empty_neighbour_set:
             neighbour_count = self.live_neighbours_count(empty_position)
             if neighbour_count == 3:
-                next_cell_positions[empty_position] = True
-
+                next_cell_positions[empty_position] = True 
         self.cell_positions = next_cell_positions
 
 class Screen:
@@ -136,46 +137,68 @@ class Screen:
     # Declare cursor_position as a property
     @property
     def cursor_position(self) -> Point:
-        row, column = self.stdscr.getyx()
-        return Point(row=row, col=column)
+        """
+        Returns the absolute cursor position
+        """
+        relative_row, relative_col = self.stdscr.getyx()
+        return self.__absolute_point(Point(relative_row, relative_col))
 
     def get_input_key(self):
         return self.stdscr.getkey()
+
+    def move_origin(self, row_delta, col_delta):
+        """ 
+        Move the origin
+        """
+        self.origin = Point(self.origin.row + row_delta, self.origin.col + col_delta)
 
     def move_cursor(self, row_delta, col_delta):
         """ 
         Move the cursor
         """
-        pos = self.cursor_position
+        row, col = self.stdscr.getyx()
         try:
-            self.stdscr.move(pos.row + row_delta, pos.col + col_delta)
+            self.stdscr.move(row + row_delta, col + col_delta)
         except curses.error:
+           # Tried to move off the screen
             return False
 
         return True
 
     def add_cell(self, point):
-        if point.row > self.max_row or point.col > self.max_col or point.row < 0 or point.col < 0:
+        # Transform point to be relative to origin
+        relative_point = self.__relative_point(absolute_point=point)
+        # Insert the actual character
+        if relative_point.row > self.max_row or relative_point.col > self.max_col or relative_point.row < 0 or relative_point.col < 0:
             return
-        old_position = self.cursor_position
-        self.stdscr.move(point.row, point.col)
+        self.save_cursor()
+        self.stdscr.move(relative_point.row, relative_point.col)
         self.stdscr.addch(CELL_CHAR)
-        self.stdscr.move(old_position.row, old_position.col)
+        self.restore_cursor()
 
     def remove_cell(self, point):
-        old_position = self.cursor_position
-        self.stdscr.move(point.row, point.col)
+        relative_point = self.__relative_point(absolute_point=point)
+        self.save_cursor()
+        self.stdscr.move(relative_point.row, relative_point.col)
         self.stdscr.addch(BLANK_CHAR)
-        self.stdscr.move(old_position.row, old_position.col)
+        self.restore_cursor()
 
     def save_cursor(self):
-        self.saved_cursor = self.cursor_position
+        row, col = self.stdscr.getyx()
+        self.saved_cursor = Point(row, col)
 
     def restore_cursor(self):
         self.stdscr.move(self.saved_cursor.row, self.saved_cursor.col)
 
     def clear(self):
         self.stdscr.erase()
+
+    def __relative_point(self, absolute_point):
+        return Point(absolute_point.row - self.origin.row, absolute_point.col - self.origin.col)
+
+    def __absolute_point(self, relative_point):
+        return Point(relative_point.row + self.origin.row, relative_point.col + self.origin.col)
+
 
 class GameOfLife:
     """
@@ -206,18 +229,29 @@ class GameOfLife:
         """
         if input_key == Command.QUIT:
             return False
-        elif input_key in Command.MOVE_KEYS:
+        elif input_key in Command.MOVE_KEYS and self.mode == Mode.NORMAL:
             transform = Command.cursor_transform_for_command(input_key)
-            if self.mode == Mode.INSERT: self.add_cell(self.screen.cursor_position)
             self.screen.move_cursor(row_delta=transform.row, col_delta=transform.col)
+        elif input_key in Command.MOVE_KEYS and self.mode == Mode.INSERT:
+            transform = Command.cursor_transform_for_command(input_key)
+            self.add_cell(self.screen.cursor_position)
+            self.screen.move_cursor(row_delta=transform.row, col_delta=transform.col)
+        elif input_key in Command.MOVE_KEYS and self.mode == Mode.PAN:
+            transform = Command.cursor_transform_for_command(input_key)
+            self.screen.move_origin(transform.row, transform.col)
+            self.refresh_screen()
         elif input_key == Command.INSERT_CELL:
             self.add_cell(self.screen.cursor_position)
         elif input_key == Command.DELETE_CELL:
             self.remove_cell(self.screen.cursor_position)
         elif input_key == Command.REFRESH:
             self.screen.redraw()
-        elif input_key == Command.TOGGLE_INSERT_MODE_KEY:
-            self.mode = Mode.INSERT if self.mode == Mode.NORMAL else Mode.NORMAL
+        elif input_key == Command.INSERT_MODE:
+            self.mode = Mode.INSERT
+        elif input_key == Command.NORMAL_MODE:
+            self.mode = Mode.NORMAL
+        elif input_key == Command.PAN_MODE:
+            self.mode = Mode.PAN
         elif input_key == Command.STEP:
             self.step()
         else:
