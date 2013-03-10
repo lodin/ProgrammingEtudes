@@ -3,9 +3,9 @@ TODOS:
     - Add a draw screen function to print out statistics
 """
 import curses
-
 from collections import namedtuple
 from functools import wraps
+import json
 
 Point = namedtuple("Point", ["row", "col"])
 Vector = namedtuple("Vector", ["row", "col"])
@@ -29,6 +29,8 @@ class Command:
     QUIT = 'q'
     REFRESH = 'r'
     STEP = ' '
+    SAVE_BOARD = 's'
+    LOAD_BOARD = 'l'
     
     @staticmethod
     def cursor_transform_for_command(key):
@@ -126,6 +128,20 @@ class Board:
                 next_cell_positions[empty_position] = True 
         self.cell_positions = next_cell_positions
 
+    def serialize_board(self):
+        """
+        Returns a json representation of the board state
+        """
+        listified_cell_positions = {"{0},{1}".format(position.row, position.col): value for (position,value) in self.cell_positions.items()}
+        return json.dumps(listified_cell_positions)
+
+    def load_serialized_board(self, serialized_board):
+        self.cell_positions = {}
+        deserialized_board = json.loads(serialized_board)
+        for position_str, value in deserialized_board.items():
+            row, col = [int(x) for x in position_str.split(',')]
+            self.add_cell(Point(row=row, col=col))
+
 class Screen:
     def __init__(self, stdscr):
         self.stdscr = stdscr
@@ -204,10 +220,12 @@ class GameOfLife:
     """
     An instance of the game of life.
     """
+    SAVE_FILENAME = "saved_game.gol"
+
     def __init__(self, stdscr):
         # Do initializations
         self.screen = Screen(stdscr)
-        self.board = Board([Point(1,1),Point(2,2)])
+        self.board = Board()
         self.mode = Mode.NORMAL
         self.origin = Point(row=0, col=0)
         # Start the game
@@ -254,6 +272,10 @@ class GameOfLife:
             self.mode = Mode.PAN
         elif input_key == Command.STEP:
             self.step()
+        elif input_key == Command.SAVE_BOARD:
+            self.save_board()
+        elif input_key == Command.LOAD_BOARD:
+            self.load_board()
         else:
             pass
 
@@ -276,6 +298,17 @@ class GameOfLife:
 
     def step(self):
         self.board.step()
+        self.refresh_screen()
+
+    def save_board(self):
+        with open(self.SAVE_FILENAME, mode='w') as save_fhandle:
+            board_state = self.board.serialize_board()
+            save_fhandle.write(board_state)
+
+    def load_board(self):
+        with open(self.SAVE_FILENAME) as save_fhandle:
+            serialized_board_state = save_fhandle.readline()
+            self.board.load_serialized_board(serialized_board_state)
         self.refresh_screen()
 
 if __name__ == '__main__':
