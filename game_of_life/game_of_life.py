@@ -1,5 +1,6 @@
 """
 TODOS:
+    - Add a status bar the bottom to show mode
     - Add a draw screen function to print out statistics
     - Think of a better way to save/restore cursor
 """
@@ -21,6 +22,7 @@ class Command:
     NORMAL_MODE = 'n'
     PAN_MODE = 'p'
     RECORD_MODE = 'r'
+    REPLAY_MODE = 'e'
 
     INSERT_CELL= 'c'
     DELETE_CELL = 'x'
@@ -50,6 +52,7 @@ class Mode:
     NORMAL = 2
     PAN = 3
     RECORD = 4
+    REPLAY = 5
 
     def get_code(self):
         pass
@@ -72,6 +75,8 @@ class NormalMode(Mode):
         if input_key in Command.MOVE_KEYS:
             transform = Command.cursor_transform_for_command(input_key)
             gol.screen.move_cursor(row_delta=transform.row, col_delta=transform.col)
+        elif input_key == Command.STEP:
+            gol.step()
 
 class PanMode(Mode):
     def get_code(self):
@@ -86,10 +91,22 @@ class PanMode(Mode):
 class RecordMode(Mode):
     def get_code(self):
         return 4
+
     def dispatch_user_command(self, gol, input_key):
         if input_key == Command.STEP:
-            self.record()
+            gol.record()
+            gol.step()
+        elif input_key in Command.MOVE_KEYS:
+            transform = Command.cursor_transform_for_command(input_key)
+            gol.screen.move_cursor(row_delta=transform.row, col_delta=transform.col)
 
+class ReplayMode(Mode):
+    def get_code(self):
+        return 5
+
+    def dispatch_user_command(self, gol, input_key):
+        if input_key == Command.STEP:
+            gol.replay_step()
 
 class GameOfLife:
     """
@@ -97,6 +114,7 @@ class GameOfLife:
     """
     SAVE_FILENAME = "saved_game.gol"
     RECORD_FILENAME = "recorded_game.gol"
+    REPLAY_FILENAME = "replay_game.gol"
 
     def __init__(self, stdscr):
         self.mode = Mode.NORMAL
@@ -117,6 +135,8 @@ class GameOfLife:
             self._mode = PanMode()
         elif value == Mode.RECORD:
             self._mode = RecordMode()
+        elif value == Mode.REPLAY:
+            self._mode = ReplayMode()
 
     def start(self):
         """
@@ -145,12 +165,12 @@ class GameOfLife:
             self.mode = Mode.PAN
         elif input_key == Command.RECORD_MODE:
             self.mode = Mode.RECORD
+        elif input_key == Command.REPLAY_MODE:
+            self.mode = Mode.REPLAY
         elif input_key == Command.INSERT_CELL:
             self.add_cell(self.screen.cursor_position)
         elif input_key == Command.DELETE_CELL:
             self.remove_cell(self.screen.cursor_position)
-        elif input_key == Command.STEP:
-            self.step()
         elif input_key == Command.SAVE_BOARD:
             self.save()
         elif input_key == Command.LOAD_BOARD:
@@ -176,6 +196,16 @@ class GameOfLife:
     def step(self):
         self.board.step()
         self.refresh_screen()
+
+    def replay_step(self):
+        if not hasattr(self, "replay_fhandle"):
+            self.replay_fhandle = open(self.REPLAY_FILENAME)
+        try:
+            serialized_board_state = self.replay_fhandle.readline()
+            self.board.load_serialized_board(serialized_board_state)
+            self.refresh_screen()
+        except:
+            return
 
     def save(self):
         with open(self.SAVE_FILENAME, mode='w') as save_fhandle:
