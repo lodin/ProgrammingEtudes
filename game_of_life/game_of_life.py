@@ -4,6 +4,8 @@ TODOS:
     - Think of a better way to save/restore cursor
 """
 
+import curses
+
 from board import Board
 from screen import Screen
 from datastructures import Point, Vector
@@ -49,6 +51,45 @@ class Mode:
     PAN = 3
     RECORD = 4
 
+    def get_code(self):
+        pass
+
+class InsertMode(Mode):
+    def get_code(self):
+        return 1
+
+    def dispatch_user_command(self, gol, input_key):
+        if input_key in Command.MOVE_KEYS:
+            transform = Command.cursor_transform_for_command(input_key)
+            gol.add_cell(gol.screen.cursor_position)
+            gol.screen.move_cursor(row_delta=transform.row, col_delta=transform.col)
+
+class NormalMode(Mode):
+    def get_code(self):
+        return 2
+
+    def dispatch_user_command(self, gol, input_key):
+        if input_key in Command.MOVE_KEYS:
+            transform = Command.cursor_transform_for_command(input_key)
+            gol.screen.move_cursor(row_delta=transform.row, col_delta=transform.col)
+
+class PanMode(Mode):
+    def get_code(self):
+        return 3
+
+    def dispatch_user_command(self, gol, input_key):
+        if input_key in Command.MOVE_KEYS:
+            transform = Command.cursor_transform_for_command(input_key)
+            gol.screen.move_origin(transform.row, transform.col)
+            gol.refresh_screen()
+
+class RecordMode(Mode):
+    def get_code(self):
+        return 4
+    def dispatch_user_command(self, gol, input_key):
+        if input_key == Command.STEP:
+            self.record()
+
 
 class GameOfLife:
     """
@@ -58,11 +99,24 @@ class GameOfLife:
     RECORD_FILENAME = "recorded_game.gol"
 
     def __init__(self, stdscr):
+        self.mode = Mode.NORMAL
         self.screen = Screen(stdscr)
         self.board = Board()
-        self.mode = Mode.NORMAL
-        self.origin = Point(row=0, col=0)
         self.start()
+
+    @property
+    def mode(self):
+        return self._mode.get_code()
+    @mode.setter
+    def mode(self, value):
+        if value == Mode.INSERT:
+            self._mode = InsertMode()
+        elif value == Mode.NORMAL:
+            self._mode = NormalMode()
+        elif value == Mode.PAN:
+            self._mode = PanMode()
+        elif value == Mode.RECORD:
+            self._mode = RecordMode()
 
     def start(self):
         """
@@ -78,23 +132,11 @@ class GameOfLife:
         """
         Takes a user input and decides what to do about it
         """
+        # Dispatch command to the current mode
+        self._mode.dispatch_user_command(self, input_key)
+        # Common commands for all Modes
         if input_key == Command.QUIT:
             return False
-        elif input_key in Command.MOVE_KEYS and self.mode == Mode.NORMAL:
-            transform = Command.cursor_transform_for_command(input_key)
-            self.screen.move_cursor(row_delta=transform.row, col_delta=transform.col)
-        elif input_key in Command.MOVE_KEYS and self.mode == Mode.INSERT:
-            transform = Command.cursor_transform_for_command(input_key)
-            self.add_cell(self.screen.cursor_position)
-            self.screen.move_cursor(row_delta=transform.row, col_delta=transform.col)
-        elif input_key in Command.MOVE_KEYS and self.mode == Mode.PAN:
-            transform = Command.cursor_transform_for_command(input_key)
-            self.screen.move_origin(transform.row, transform.col)
-            self.refresh_screen()
-        elif input_key == Command.INSERT_CELL:
-            self.add_cell(self.screen.cursor_position)
-        elif input_key == Command.DELETE_CELL:
-            self.remove_cell(self.screen.cursor_position)
         elif input_key == Command.INSERT_MODE:
             self.mode = Mode.INSERT
         elif input_key == Command.NORMAL_MODE:
@@ -103,17 +145,16 @@ class GameOfLife:
             self.mode = Mode.PAN
         elif input_key == Command.RECORD_MODE:
             self.mode = Mode.RECORD
-        elif input_key == Command.STEP and self.mode == Mode.RECORD:
-            self.record()
-            self.step()
+        elif input_key == Command.INSERT_CELL:
+            self.add_cell(self.screen.cursor_position)
+        elif input_key == Command.DELETE_CELL:
+            self.remove_cell(self.screen.cursor_position)
         elif input_key == Command.STEP:
             self.step()
         elif input_key == Command.SAVE_BOARD:
             self.save()
         elif input_key == Command.LOAD_BOARD:
             self.load()
-        else:
-            pass
 
         return True
 
